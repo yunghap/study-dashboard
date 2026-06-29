@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>📚 Ultimate Study Dashboard – Excel Ready</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+    <style>
+        :root {
+            --bg: #f5f1eb;
+            --card-bg: #ffffff;
+            --text: #2c2416;
+            --text-secondary: #5c5347;
+            --accent: #d4a017;
+            --accent-dark: #b8860b;
+            --blue: #4a7c96;
+            --green: #5d8a5e;
+            --red-soft: #c47f6e;
+            --purple: #7b6d8d;
+            --border: #e5dfd5;
+            --shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+            --radius: 16px;
+            --radius-sm: 10px;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', 'Inter', system-ui, sans-serif;
+            background: var(--bg); color: var(--text);
+            padding: 20px;
+            background-image: radial-gradient(ellipse at 20% 20%, rgba(180,160,120,0.08) 0%, transparent 60%),
+                            radial-gradient(ellipse at 80% 80%, rgba(140,180,160,0.06) 0%, transparent 60%);
+        }
+        .dashboard-header {
+            display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px;
+            margin-bottom: 20px; background: var(--card-bg); border-radius: var(--radius);
+            padding: 20px 28px; box-shadow: var(--shadow); border: 1px solid var(--border);
+        }
+        .dashboard-header h1 { font-size: 1.6rem; font-weight: 700; display: flex; align-items: center; gap: 10px; }
+        .exam-date-picker { display: flex; align-items: center; gap: 10px; }
+        .exam-date-picker label { font-weight: 600; font-size: 0.9rem; color: var(--text-secondary); }
+        .exam-date-picker input[type="date"] { padding: 8px 14px; border: 2px solid var(--border); border-radius: 8px; background: #fdfcf9; }
+        .countdown-banner {
+            background: linear-gradient(135deg, #3a2f1f, #5c3d1e);
+            color: #fdf6e8; border-radius: var(--radius); padding: 22px 30px; margin-bottom: 20px;
+            display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 20px;
+        }
+        .countdown-timer { display: flex; gap: 12px; }
+        .countdown-unit { background: rgba(255,255,255,0.1); border-radius: 12px; padding: 12px 16px; text-align: center; min-width: 70px; }
+        .countdown-unit .number { font-size: 2.2rem; font-weight: 800; }
+        .countdown-unit .label { font-size: 0.7rem; opacity: 0.7; }
+        .countdown-message { font-size: 1.1rem; font-weight: 600; }
+        .main-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }
+        @media (max-width: 1100px) { .main-grid { grid-template-columns: 1fr; } }
+        .card { background: var(--card-bg); border-radius: var(--radius); padding: 20px 24px; box-shadow: var(--shadow); border: 1px solid var(--border); }
+        .card h3 { font-size: 1.05rem; font-weight: 700; margin-bottom: 14px; display: flex; align-items: center; gap: 8px; }
+        .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+        .dot.blue { background: var(--blue); } .dot.green { background: var(--green); } .dot.purple { background: var(--purple); } .dot.accent { background: var(--accent); }
+        .timetable-wrapper { overflow-x: auto; }
+        .timetable-grid { display: grid; grid-template-columns: 70px repeat(7, 1fr); min-width: 700px; font-size: 0.8rem; border: 1px solid var(--border); border-radius: var(--radius-sm); position: relative; }
+        .timetable-grid .cell { padding: 6px 4px; border-bottom: 1px solid #f0ebe0; border-right: 1px solid #f0ebe0; min-height: 32px; display: flex; align-items: center; justify-content: center; font-size: 0.72rem; }
+        .timetable-grid .header-cell { background: #faf7f0; font-weight: 700; }
+        .timetable-grid .time-cell { background: #fdfcf9; font-weight: 600; }
+        .timetable-grid .today-col { background: #fffdf5 !important; box-shadow: inset 0 0 0 2px var(--accent); }
+        .cell.drop-active { background: #fef3c7 !important; outline: 2px dashed var(--accent); }
+        .study-block { position: absolute; top: 2px; left: 3px; right: 3px; bottom: 2px; border-radius: 6px; font-size: 0.65rem; font-weight: 700; color: #fff; display: flex; align-items: center; justify-content: center; z-index: 3; cursor: grab; box-shadow: 0 1px 3px rgba(0,0,0,0.15); user-select: none; }
+        .study-block:active { cursor: grabbing; }
+        .study-block.dragging { opacity: 0.5; z-index: 10; box-shadow: 0 8px 20px rgba(0,0,0,0.4); }
+        .delete-block { position: absolute; top: 2px; right: 4px; background: rgba(255,255,255,0.9); color: #c44; border: none; border-radius: 50%; width: 16px; height: 16px; font-size: 10px; display: none; align-items: center; justify-content: center; cursor: pointer; }
+        .study-block:hover .delete-block { display: flex; }
+        .block-math { background: #4a7c96; } .block-physics { background: #5d8a5e; } .block-chemistry { background: #c47f6e; } .block-review { background: #7b6d8d; } .block-mock { background: #d4a017; color: #2c2416; }
+        .add-block-panel { margin-top: 12px; display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; background: #faf8f2; padding: 12px; border-radius: var(--radius-sm); border: 1px solid var(--border); }
+        .add-block-panel select, .add-block-panel input { padding: 6px 10px; border: 2px solid var(--border); border-radius: 6px; font-size: 0.8rem; background: #fff; }
+        .add-block-panel button { padding: 6px 14px; background: var(--accent); color: #fff; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; }
+        .progress-section { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+        .progress-ring-container { position: relative; width: 180px; height: 180px; }
+        .progress-ring-container svg { transform: rotate(-90deg); width: 100%; height: 100%; }
+        .progress-ring-bg { fill: none; stroke: #e8e2d5; stroke-width: 12; }
+        .progress-ring-fg { fill: none; stroke: var(--green); stroke-width: 12; stroke-linecap: round; }
+        .progress-center-text { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); text-align: center; }
+        .progress-center-text .big { font-size: 2.4rem; font-weight: 800; }
+        .progress-stats { display: flex; gap: 20px; flex-wrap: wrap; justify-content: center; }
+        .stat-item { text-align: center; background: #fdfcf9; border-radius: 10px; padding: 10px 16px; border: 1px solid var(--border); }
+        .radar-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 20px; }
+        @media (max-width: 900px) { .radar-row { grid-template-columns: 1fr; } }
+        .radar-card { background: var(--card-bg); border-radius: var(--radius); padding: 16px 18px; box-shadow: var(--shadow); border: 1px solid var(--border); text-align: center; }
+        .tree-tasks-row { display: grid; grid-template-columns: 1fr 1.2fr; gap: 20px; margin-bottom: 20px; }
+        @media (max-width: 900px) { .tree-tasks-row { grid-template-columns: 1fr; } }
+        .tree-card { background: var(--card-bg); border-radius: var(--radius); padding: 16px 20px; box-shadow: var(--shadow); border: 1px solid var(--border); display: flex; flex-direction: column; align-items: center; }
+        .task-list { list-style: none; display: flex; flex-direction: column; gap: 6px; max-height: 380px; overflow-y: auto; }
+        .task-item { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 10px; cursor: pointer; border: 1px solid transparent; background: #fdfcf9; flex-wrap: wrap; }
+        .task-item.completed { background: #f3f7f0; border-color: #d0e0c8; }
+        .task-checkbox { width: 22px; height: 22px; border-radius: 6px; border: 2px solid #c5b99a; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; color: transparent; }
+        .task-item.completed .task-checkbox { background: var(--green); border-color: var(--green); color: #fff; }
+        .task-item.completed .task-text { text-decoration: line-through; color: #8a9e80; }
+        .badge { font-size: 0.6rem; padding: 2px 5px; border-radius: 4px; font-weight: 600; }
+        .badge-urgent { background: #fde2e2; color: #b91c1c; }
+        .badge-important { background: #fef3c7; color: #92400e; }
+        .task-subject-tag { font-size: 0.65rem; padding: 3px 8px; border-radius: 20px; font-weight: 600; }
+        .tag-math { background: #e8f0f6; color: #3d6b82; } .tag-physics { background: #e6f0e4; color: #4a7048; } .tag-review { background: #f0ecf5; color: #66597a; } .tag-mock { background: #fef8e8; color: #8a6d15; }
+        .questions-card { margin-bottom: 20px; }
+        .practice-card { margin-bottom: 20px; }
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.4); align-items: center; justify-content: center; z-index: 1000; }
+        .modal-content { background: #fff; padding: 24px; border-radius: 16px; width: 90%; max-width: 500px; max-height: 80vh; overflow-y: auto; }
+        button { cursor: pointer; font-family: inherit; }
+        .filter-bar { display: flex; gap: 6px; margin-bottom: 10px; flex-wrap: wrap; }
+        .filter-btn { padding: 3px 8px; border-radius: 12px; border: 1px solid var(--border); background: #fff; font-size: 0.7rem; }
+        .filter-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+    </style>
+</head>
+<body>
+    <header class="dashboard-header">
+        <h1><span>📚</span>Study Dashboard</h1>
+        <div class="exam-date-picker">
+            <label for="examDateInput">📅 Exam Date:</label>
+            <input type="date" id="examDateInput">
+        </div>
+    </header>
+
+    <div class="countdown-banner" id="countdownBanner">
+        <div>
+            <div class="countdown-label">⏳ Time Until Exam</div>
+            <div class="countdown-timer" id="countdownTimer">
+                <div class="countdown-unit"><div class="number" id="cd-days">--</div><div class="label">Days</div></div>
+                <div class="countdown-unit"><div class="number" id="cd-hours">--</div><div class="label">Hours</div></div>
+                <div class="countdown-unit"><div class="number" id="cd-mins">--</div><div class="label">Minutes</div></div>
+                <div class="countdown-unit"><div class="number" id="cd-secs">--</div><div class="label">Seconds</div></div>
+            </div>
+        </div>
+        <div class="countdown-message" id="countdownMessage">Keep pushing forward! 💪</div>
+    </div>
+
+    <!-- Daily Questions -->
+    <div class="card questions-card">
+        <h3><span class="dot blue"></span>📈 Daily Questions Solved</h3>
+        <div style="display:flex; gap:20px; flex-wrap:wrap; align-items:center;">
+            <div>
+                <label>Today's count:</label>
+                <input type="number" id="dailyQuestionsInput" min="0" value="0" style="width:80px; padding:6px; border:2px solid var(--border); border-radius:6px; margin-left:8px;">
+                <button id="saveDailyQuestions" style="padding:6px 12px; background:var(--accent); color:#fff; border:none; border-radius:6px;">Save</button>
+            </div>
+            <div style="flex:1; min-width:300px;"><canvas id="dailyQuestionsChart"></canvas></div>
+        </div>
+    </div>
+
+    <div class="main-grid">
+        <div class="card">
+            <h3><span class="dot blue"></span>📅 Weekly Timetable</h3>
+            <div class="timetable-wrapper"><div class="timetable-grid" id="timetableGrid"></div></div>
+            <div class="add-block-panel">
+                <select id="blockDay"><option value="0">Mon</option><option value="1">Tue</option><option value="2">Wed</option><option value="3">Thu</option><option value="4">Fri</option><option value="5">Sat</option><option value="6">Sun</option></select>
+                <input type="number" id="blockStart" placeholder="Start (9)" min="7" max="21" step="0.5" value="9">
+                <input type="number" id="blockDuration" placeholder="Dur (h)" min="0.5" max="6" step="0.5" value="1.5">
+                <input type="text" id="blockSubject" placeholder="Subject" value="Study">
+                <select id="blockColor"><option value="block-math">🔵 Math</option><option value="block-physics">🟢 Physics</option><option value="block-chemistry">🟠 Chemistry</option><option value="block-review">🟣 Review</option><option value="block-mock">🟡 Mock Test</option><option value="custom">🎨 Custom…</option></select>
+                <span id="customColorGroup" style="display:none; gap:4px;"><input type="color" id="blockCustomColor" value="#4a7c96"><input type="text" id="blockCustomClass" placeholder="CSS class" style="width:80px;"></span>
+                <button id="addBlockBtn">+ Add Block</button>
+            </div>
+        </div>
+        <div class="card progress-section">
+            <h3><span class="dot green"></span>📈 Study Progress</h3>
+            <div class="progress-ring-container">
+                <svg viewBox="0 0 160 160"><circle class="progress-ring-bg" cx="80" cy="80" r="68"/><circle class="progress-ring-fg" id="progressCircle" cx="80" cy="80" r="68" stroke-dasharray="427.26" stroke-dashoffset="427.26"/></svg>
+                <div class="progress-center-text"><div class="big" id="progressPercent">0%</div><div class="small">complete</div></div>
+            </div>
+            <div class="progress-stats">
+                <div class="stat-item"><div class="stat-num" id="statCompleted">0</div><div class="stat-lbl">Done</div></div>
+                <div class="stat-item"><div class="stat-num" id="statRemaining">0</div><div class="stat-lbl">Left</div></div>
+                <div class="stat-item"><div class="stat-num" id="statStreak">0</div><div class="stat-lbl">Streak 🔥</div></div>
+            </div>
+        </div>
+    </div>
+
+    <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px;">
+        <button id="updateRadarBtn" style="padding:6px 12px; background:var(--purple); color:#fff; border:none; border-radius:6px;">✏️ Update Scores</button>
+        <label for="radarFileInput" style="padding:6px 12px; background:var(--blue); color:#fff; border-radius:6px; cursor:pointer;">📂 Import Radar Excel</label>
+        <input type="file" id="radarFileInput" accept=".csv,.xlsx,.xls" style="display:none;">
+        <button id="downloadRadarTemplate" style="padding:6px 12px; background:#6c757d; color:#fff; border:none; border-radius:6px;">📥 Radar Template</button>
+    </div>
+    <div class="radar-row">
+        <div class="radar-card"><h4>📊 Test 1</h4><canvas id="radarChart1"></canvas></div>
+        <div class="radar-card"><h4>📊 Test 2</h4><canvas id="radarChart2"></canvas></div>
+        <div class="radar-card"><h4>📊 Test 3</h4><canvas id="radarChart3"></canvas></div>
+    </div>
+
+    <!-- Practice Exam Marks Line Chart -->
+    <div class="card practice-card">
+        <h3><span class="dot purple"></span>📉 Practice Exam Marks (MC / A1 / A2 / B)</h3>
+        <div style="display:flex; gap:8px; margin-bottom:10px;">
+            <label for="practiceFileInput" style="padding:6px 12px; background:var(--blue); color:#fff; border-radius:6px; cursor:pointer;">📂 Import Marks Excel</label>
+            <input type="file" id="practiceFileInput" accept=".csv,.xlsx,.xls" style="display:none;">
+            <button id="downloadPracticeTemplate" style="padding:6px 12px; background:#6c757d; color:#fff; border:none; border-radius:6px;">📥 Marks Template</button>
+        </div>
+        <canvas id="practiceMarksChart"></canvas>
+    </div>
+
+    <div class="tree-tasks-row">
+        <div class="tree-card">
+            <h3><span class="dot green"></span>🌳 Your Growth Tree</h3>
+            <canvas id="treeCanvas" width="420" height="360"></canvas>
+        </div>
+        <div class="tasks-card card">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                <h3 style="margin:0;"><span class="dot accent"></span>✅ Study Tasks</h3>
+                <div style="display:flex; gap:4px;">
+                    <button id="importTasksBtn" style="padding:4px 10px; font-size:0.75rem; background:#e8e0cf; border:none; border-radius:6px;">📥 Import</button>
+                    <button id="downloadTasksTemplate" style="padding:4px 10px; font-size:0.75rem; background:#e8e0cf; border:none; border-radius:6px;">📤 Template</button>
+                </div>
+            </div>
+            <div style="display:flex; gap:6px; margin-bottom:10px;">
+                <button id="tabDay" class="task-tab active" style="padding:4px 12px; border-radius:20px; border:1px solid var(--border); background:var(--accent); color:#fff;">📆 Day</button>
+                <button id="tabMonth" class="task-tab" style="padding:4px 12px; border-radius:20px; border:1px solid var(--border); background:transparent;">📅 Month</button>
+                <div class="filter-bar" style="margin-left:auto;">
+                    <button class="filter-btn active" data-filter="all">All</button>
+                    <button class="filter-btn" data-filter="urgent-important">⚠️⭐ Urgent & Important</button>
+                    <button class="filter-btn" data-filter="not-urgent-important">⭐ Important</button>
+                    <button class="filter-btn" data-filter="urgent-not-important">⚠️ Urgent</button>
+                    <button class="filter-btn" data-filter="not-urgent-not-important">Neither</button>
+                </div>
+            </div>
+            <div style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px; background:#faf8f2; padding:8px; border-radius:8px;">
+                <input type="text" id="newTaskText" placeholder="Task description" style="flex:1; min-width:120px; padding:6px; border:2px solid var(--border); border-radius:6px;">
+                <input type="text" id="newTaskTag" placeholder="Tag" style="width:80px; padding:6px; border:2px solid var(--border); border-radius:6px;">
+                <select id="newTaskCategory" style="padding:6px; border:2px solid var(--border); border-radius:6px;"><option value="day">Daily</option><option value="month">Monthly</option></select>
+                <label style="display:flex; align-items:center; gap:4px; font-size:0.75rem;"><input type="checkbox" id="newTaskUrgent"> Urgent</label>
+                <label style="display:flex; align-items:center; gap:4px; font-size:0.75rem;"><input type="checkbox" id="newTaskImportant"> Important</label>
+                <button id="addTaskBtn" style="padding:6px 12px; background:var(--accent); color:#fff; border:none; border-radius:6px;">Add</button>
+            </div>
+            <ul class="task-list" id="taskList"></ul>
+        </div>
+    </div>
+
+    <!-- Import Tasks Modal -->
+    <div id="importModal" class="modal">
+        <div class="modal-content">
+            <h3>📥 Import Tasks</h3>
+            <p style="font-size:0.8rem;">Paste JSON array. Format: <code>[{"text":"...","tag":"Math","tagClass":"tag-math","category":"day","urgent":false,"important":true},...]</code></p>
+            <textarea id="importTextarea" rows="8" style="width:100%; font-family:monospace; border:1px solid var(--border); border-radius:8px; padding:8px;"></textarea>
+            <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:12px;">
+                <button id="cancelImportBtn" style="padding:6px 14px; background:transparent; border:1px solid var(--border); border-radius:6px;">Cancel</button>
+                <button id="applyImportBtn" style="padding:6px 14px; background:var(--accent); color:#fff; border:none; border-radius:6px;">Import</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="radarModal" class="modal">
+        <div class="modal-content" style="max-width:550px;">
+            <h3>📊 Update Test Scores Manually</h3>
+            <div id="radarInputsContainer"></div>
+            <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:16px;">
+                <button id="cancelRadarBtn" style="padding:6px 14px; background:transparent; border:1px solid var(--border); border-radius:6px;">Cancel</button>
+                <button id="applyRadarBtn" style="padding:6px 14px; background:var(--purple); color:#fff; border:none; border-radius:6px;">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        (function() {
+            const CIRCUMFERENCE = 2 * Math.PI * 68;
+            const DEFAULT_STUDY_BLOCKS = [
+                { day:0, start:9, dur:2, subj:'Math', cls:'block-math' },
+                { day:0, start:14, dur:2, subj:'Physics', cls:'block-physics' },
+                { day:1, start:10, dur:2, subj:'Chemistry', cls:'block-chemistry' },
+                { day:1, start:15, dur:2, subj:'Math Practice', cls:'block-math' },
+                { day:2, start:9, dur:2, subj:'Review Notes', cls:'block-review' },
+                { day:2, start:13, dur:2, subj:'Physics Lab', cls:'block-physics' },
+                { day:3, start:9, dur:2, subj:'Math', cls:'block-math' },
+                { day:4, start:10, dur:2, subj:'Mock Test', cls:'block-mock' },
+                { day:6, start:10, dur:2, subj:'Review & Plan', cls:'block-review' },
+            ];
+            const RADAR_LABELS = ['Algebra','Geometry','Trigonometry','Calculus','Statistics'];
+
+            let studyBlocks = [];
+            let examDate;
+            let completedTasks = [];
+            let currentTaskCategory = 'day';
+            let currentTaskFilter = 'all';
+            let treeVisualPercent = 0, treeTargetPercent = 0, animationId = null;
+            let radarCharts = [], dailyQuestionsChart = null, practiceChart = null;
+            let RADAR_DATA = [
+                { label:'Test 1', data:[4,5,3,2,4], bg:'rgba(180,130,110,0.15)', border:'rgba(180,130,110,1)' },
+                { label:'Test 2', data:[6,6,5,4,5], bg:'rgba(140,150,180,0.15)', border:'rgba(140,150,180,1)' },
+                { label:'Test 3', data:[8,7,7,6,7], bg:'rgba(90,140,100,0.18)', border:'rgba(90,140,100,1)' },
+            ];
+            let TASKS = [];
+            let dailyQuestionsData = {};
+            let practiceMarksData = []; // array of { trial, MC, A1, A2, B }
+
+            // ─── Local storage ────────────────────
+            const loadJSON = (key, fb) => { try { const s=localStorage.getItem(key); return s ? JSON.parse(s) : fb; } catch(e){ return fb; } };
+            const saveJSON = (key,data) => localStorage.setItem(key, JSON.stringify(data));
+
+            function loadExamDate() { const d=loadJSON('studyDashboard_examDate',null); return d?new Date(d):(()=>{ const n=new Date(); n.setDate(n.getDate()+30); n.setHours(9,0,0,0); return n; })(); }
+            function saveExamDate() { saveJSON('studyDashboard_examDate', examDate.toISOString()); }
+            function loadStudyBlocks() { const b=loadJSON('studyDashboard_timetableBlocks',null); return Array.isArray(b)&&b.length?b:[...DEFAULT_STUDY_BLOCKS]; }
+            function saveStudyBlocks() { saveJSON('studyDashboard_timetableBlocks', studyBlocks); }
+            function loadCompletedTasks() { return loadJSON('studyDashboard_completedTasks',[]); }
+            function saveCompletedTasks() { saveJSON('studyDashboard_completedTasks', completedTasks); }
+            function loadRadarData() { const d=loadJSON('studyDashboard_radarData',null); if(Array.isArray(d)) RADAR_DATA=d; else saveRadarData(); }
+            function saveRadarData() { saveJSON('studyDashboard_radarData', RADAR_DATA); }
+            function loadTasks() { const t=loadJSON('studyDashboard_tasks',null); if(Array.isArray(t)&&t.length) TASKS=t; else { TASKS=[ {text:'Algebra review',tag:'Math',tagClass:'tag-math',category:'day',urgent:true,important:true} ]; saveTasks(); } }
+            function saveTasks() { saveJSON('studyDashboard_tasks', TASKS); }
+            function loadDailyQuestions() { const d=loadJSON('studyDashboard_dailyQuestions',{}); dailyQuestionsData=d; }
+            function saveDailyQuestions() { saveJSON('studyDashboard_dailyQuestions', dailyQuestionsData); }
+            function loadPracticeMarks() { practiceMarksData = loadJSON('studyDashboard_practiceMarks', []); }
+            function savePracticeMarks() { saveJSON('studyDashboard_practiceMarks', practiceMarksData); }
+
+            // ─── Countdown ────────────────────────
+            function updateCountdown() {
+                const now = new Date();
+                const diff = examDate.getTime() - now.getTime();
+                const d = document.getElementById('cd-days'), h = document.getElementById('cd-hours'), m = document.getElementById('cd-mins'), s = document.getElementById('cd-secs');
+                if (diff <= 0) {
+                    d.textContent='0'; h.textContent='0'; m.textContent='0'; s.textContent='0';
+                    document.getElementById('countdownMessage').textContent='🎉 Exam Day!';
+                    return;
+                }
+                const total = Math.floor(diff/1000);
+                d.textContent = Math.floor(total/86400);
+                h.textContent = String(Math.floor((total%86400)/3600)).padStart(2,'0');
+                m.textContent = String(Math.floor((total%3600)/60)).padStart(2,'0');
+                s.textContent = String(total%60).padStart(2,'0');
+            }
+
+            // ─── Timetable (same as before, simplified for brevity) ───
+            function getWeekDayDates() { const now=new Date(); const off=now.getDay()===0?-6:1-now.getDay(); const mon=new Date(now); mon.setDate(now.getDate()+off); mon.setHours(0,0,0,0); return Array.from({length:7},(_,i)=>{ const d=new Date(mon); d.setDate(mon.getDate()+i); return d; }); }
+            function generateTimetable() {
+                const now=new Date(); const dates=getWeekDayDates();
+                const days=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+                let h='<div class="cell header-cell time-cell">Time</div>';
+                for(let i=0;i<7;i++) h+=`<div class="cell header-cell${dates[i].toDateString()===now.toDateString()?' today-col':''}">${days[i]}<br>${dates[i].getDate()} ${dates[i].toLocaleDateString('en-US',{month:'short'})}</div>`;
+                for(let t=7;t<=22;t++) { h+=`<div class="cell time-cell">${String(t).padStart(2,'0')}:00</div>`; for(let d=0;d<7;d++) h+=`<div class="cell${dates[d].toDateString()===now.toDateString()?' today-col':''}" data-day="${d}" data-hour="${t}"></div>`; }
+                document.getElementById('timetableGrid').innerHTML=h;
+                placeStudyBlocks(dates); attachDragDrop();
+            }
+            function placeStudyBlocks(dates, sh=7) {
+                const g=document.getElementById('timetableGrid'); g.querySelectorAll('.study-block').forEach(e=>e.remove());
+                studyBlocks.forEach((b,i)=>{
+                    const cells=g.querySelectorAll(`.cell[data-day="${b.day}"]`); if(!cells.length) return;
+                    const si=b.start-sh, ei=b.start+b.dur-sh; if(si<0||si>=cells.length) return;
+                    const f=cells[si], l=cells[Math.min(Math.floor(ei),cells.length-1)]; if(!f||!l) return;
+                    const gr=g.getBoundingClientRect(), fr=f.getBoundingClientRect(), lr=l.getBoundingClientRect();
+                    const el=document.createElement('div'); el.className=`study-block ${b.cls}`; el.textContent=b.subj;
+                    el.style.top=(fr.top-gr.top)+'px'; el.style.left=(fr.left-gr.left)+'px'; el.style.width=fr.width+'px'; el.style.height=(lr.bottom-fr.top)+'px';
+                    el.draggable=true; el.dataset.index=i;
+                    const del=document.createElement('span'); del.className='delete-block'; del.innerHTML='✕'; del.onclick=e=>{e.stopPropagation(); deleteBlock(i);}; el.appendChild(del);
+                    el.addEventListener('dragstart', e=>{ draggedIndex=parseInt(e.target.dataset.index); e.target.classList.add('dragging'); });
+                    el.addEventListener('dragend', e=>{ e.target.classList.remove('dragging'); });
+                    g.appendChild(el);
+                });
+            }
+            let draggedIndex=null;
+            function attachDragDrop() {
+                document.querySelectorAll('.cell[data-day][data-hour]').forEach(c=>{
+                    c.addEventListener('dragover',e=>{e.preventDefault(); c.classList.add('drop-active');});
+                    c.addEventListener('dragleave',()=>c.classList.remove('drop-active'));
+                    c.addEventListener('drop',e=>{
+                        e.preventDefault(); c.classList.remove('drop-active');
+                        if(draggedIndex===null) return;
+                        const nd=parseInt(c.dataset.day), nh=parseInt(c.dataset.hour);
+                        if(!isNaN(nd)&&!isNaN(nh)){ studyBlocks[draggedIndex].day=nd; studyBlocks[draggedIndex].start=nh; saveStudyBlocks(); refreshTimetable(); }
+                    });
+                });
+            }
+            function deleteBlock(i){ studyBlocks.splice(i,1); saveStudyBlocks(); refreshTimetable(); }
+            function addBlock(day,start,dur,subj,cls){ studyBlocks.push({day,start,dur,subj,cls}); saveStudyBlocks(); refreshTimetable(); }
+            function refreshTimetable(){ generateTimetable(); }
+
+            // Custom color
+            document.getElementById('blockColor').addEventListener('change',function(){ document.getElementById('customColorGroup').style.display=this.value==='custom'?'inline-flex':'none'; });
+            document.getElementById('addBlockBtn').addEventListener('click',()=>{
+                const day=parseInt(document.getElementById('blockDay').value), start=parseFloat(document.getElementById('blockStart').value), dur=parseFloat(document.getElementById('blockDuration').value), subj=document.getElementById('blockSubject').value.trim()||'Study';
+                const color=document.getElementById('blockColor').value;
+                let cls;
+                if(color==='custom'){
+                    cls=document.getElementById('blockCustomClass').value.trim()||'block-custom-'+Date.now();
+                    const col=document.getElementById('blockCustomColor').value;
+                    if(!document.getElementById('dyn-style')){ const s=document.createElement('style'); s.id='dyn-style'; document.head.appendChild(s); }
+                    document.getElementById('dyn-style').innerHTML+=`.${cls}{background:${col};color:#fff;}`;
+                }else cls=color;
+                if(isNaN(start)||isNaN(dur)||dur<=0) return alert('Invalid time.');
+                addBlock(day,start,dur,subj,cls);
+            });
+
+            // ─── Daily Questions ──────────────────
+            function getLast7DaysQuestions() {
+                const dates=[]; for(let i=6;i>=0;i--){ const d=new Date(); d.setDate(d.getDate()-i); const k=d.toISOString().slice(0,10); dates.push({date:k, count:dailyQuestionsData[k]||0}); } return dates;
+            }
+            function renderDailyQuestionsChart() {
+                const ctx=document.getElementById('dailyQuestionsChart').getContext('2d'); if(dailyQuestionsChart) dailyQuestionsChart.destroy();
+                const last7=getLast7DaysQuestions(); dailyQuestionsChart=new Chart(ctx,{type:'bar',data:{labels:last7.map(d=>d.date.slice(5)),datasets:[{label:'Questions',data:last7.map(d=>d.count),backgroundColor:'#4a7c96'}]},options:{responsive:true,scales:{y:{beginAtZero:true}}}});
+            }
+            document.getElementById('saveDailyQuestions').addEventListener('click',()=>{
+                const val=parseInt(document.getElementById('dailyQuestionsInput').value)||0; const today=new Date().toISOString().slice(0,10); dailyQuestionsData[today]=val; saveDailyQuestions(); renderDailyQuestionsChart();
+            });
+
+            // ─── Tasks & Eisenhower ───────────────
+            function getFilteredTasks(){
+                let f=TASKS.filter(t=>t.category===currentTaskCategory);
+                if(currentTaskFilter==='urgent-important') f=f.filter(t=>t.urgent&&t.important);
+                else if(currentTaskFilter==='not-urgent-important') f=f.filter(t=>!t.urgent&&t.important);
+                else if(currentTaskFilter==='urgent-not-important') f=f.filter(t=>t.urgent&&!t.important);
+                else if(currentTaskFilter==='not-urgent-not-important') f=f.filter(t=>!t.urgent&&!t.important);
+                return f;
+            }
+            function renderTaskList(){
+                const list=document.getElementById('taskList'); list.innerHTML='';
+                getFilteredTasks().forEach(task=>{
+                    const ri=TASKS.indexOf(task), done=completedTasks.includes(ri);
+                    const li=document.createElement('li'); li.className='task-item'+(done?' completed':'');
+                    let badges=''; if(task.urgent) badges+='<span class="badge badge-urgent">⚠️</span>'; if(task.important) badges+='<span class="badge badge-important">⭐</span>';
+                    li.innerHTML=`<span class="task-checkbox">${done?'✓':''}</span><span class="task-text">${task.text}</span><span class="task-badges">${badges}</span><span class="task-subject-tag ${task.tagClass||'tag-math'}">${task.tag}</span>`;
+                    li.addEventListener('click',()=>toggleTask(ri)); list.appendChild(li);
+                });
+            }
+            function toggleTask(i){ completedTasks.includes(i)?completedTasks=completedTasks.filter(x=>x!==i):completedTasks.push(i); saveCompletedTasks(); renderTaskList(); updateProgressRing(); triggerTreeAnimation(); }
+            document.getElementById('tabDay').addEventListener('click',()=>switchTab('day'));
+            document.getElementById('tabMonth').addEventListener('click',()=>switchTab('month'));
+            function switchTab(cat){
+                currentTaskCategory=cat; document.getElementById('tabDay').style.background=cat==='day'?'var(--accent)':'transparent'; document.getElementById('tabDay').style.color=cat==='day'?'#fff':'var(--text)';
+                document.getElementById('tabMonth').style.background=cat==='month'?'var(--accent)':'transparent'; document.getElementById('tabMonth').style.color=cat==='month'?'#fff':'var(--text)'; renderTaskList();
+            }
+            document.querySelectorAll('.filter-btn').forEach(b=>b.addEventListener('click',function(){ document.querySelectorAll('.filter-btn').forEach(x=>x.classList.remove('active')); this.classList.add('active'); currentTaskFilter=this.dataset.filter; renderTaskList(); }));
+            document.getElementById('addTaskBtn').addEventListener('click',()=>{
+                const text=document.getElementById('newTaskText').value.trim(); if(!text) return alert('Enter task.');
+                const tag=document.getElementById('newTaskTag').value.trim()||'General', cat=document.getElementById('newTaskCategory').value;
+                const urgent=document.getElementById('newTaskUrgent').checked, important=document.getElementById('newTaskImportant').checked;
+                TASKS.push({text,tag,tagClass:'tag-'+tag.toLowerCase().replace(/\s+/g,'-'),category:cat,urgent,important});
+                saveTasks(); renderTaskList(); updateProgressRing(); triggerTreeAnimation();
+                document.getElementById('newTaskText').value=''; document.getElementById('newTaskTag').value=''; document.getElementById('newTaskUrgent').checked=false; document.getElementById('newTaskImportant').checked=false;
+            });
+            // Import tasks JSON
+            document.getElementById('importTasksBtn').addEventListener('click',()=>document.getElementById('importModal').style.display='flex');
+            document.getElementById('cancelImportBtn').addEventListener('click',()=>document.getElementById('importModal').style.display='none');
+            document.getElementById('applyImportBtn').addEventListener('click',()=>{
+                try{
+                    const newTasks=JSON.parse(document.getElementById('importTextarea').value);
+                    if(Array.isArray(newTasks)&&newTasks.every(t=>t.text&&t.category)){ TASKS=newTasks; if(confirm('Reset completion?')){ completedTasks=[]; saveCompletedTasks(); } saveTasks(); renderTaskList(); updateProgressRing(); triggerTreeAnimation(); document.getElementById('importModal').style.display='none'; }
+                    else alert('Invalid format.');
+                }catch(e){ alert('Invalid JSON.'); }
+            });
+            // Download tasks Excel template
+            document.getElementById('downloadTasksTemplate').addEventListener('click',()=>{
+                const ws_data = [['text','tag','tagClass','category','urgent','important'], ['Sample daily task','Math','tag-math','day',true,true], ['Sample monthly task','Review','tag-review','month',false,true]];
+                const ws = XLSX.utils.aoa_to_sheet(ws_data);
+                const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Tasks Template');
+                XLSX.writeFile(wb, 'tasks_template.xlsx');
+            });
+
+            // ─── Progress Ring ────────────────────
+            function getCompletionPercent(){ return TASKS.length?completedTasks.length/TASKS.length:0; }
+            function updateProgressRing(){
+                const pct=getCompletionPercent(); document.getElementById('progressCircle').style.strokeDashoffset=CIRCUMFERENCE*(1-pct);
+                document.getElementById('progressPercent').textContent=Math.round(pct*100)+'%';
+                document.getElementById('statCompleted').textContent=completedTasks.length;
+                document.getElementById('statRemaining').textContent=TASKS.length-completedTasks.length;
+                document.getElementById('statStreak').textContent=Math.min(Math.floor(completedTasks.length/2),30);
+            }
+
+            // ─── Radar Charts ────────────────────
+            function initRadarCharts(){
+                const ids=['radarChart1','radarChart2','radarChart3']; radarCharts.forEach(c=>c.destroy()); radarCharts=[];
+                ids.forEach((id,i)=>{
+                    const ctx=document.getElementById(id); if(!ctx) return; const d=RADAR_DATA[i];
+                    radarCharts.push(new Chart(ctx,{type:'radar',data:{labels:RADAR_LABELS,datasets:[{label:d.label,data:d.data,backgroundColor:d.bg,borderColor:d.border,borderWidth:2}]},options:{responsive:true,scales:{r:{beginAtZero:true,max:10}}} }));
+                });
+            }
+            // Manual update modal
+            function buildRadarInputs(){
+                const container=document.getElementById('radarInputsContainer'); container.innerHTML='';
+                RADAR_DATA.forEach((test,idx)=>{
+                    const div=document.createElement('div'); div.style.marginBottom='14px'; div.innerHTML=`<strong>${test.label}</strong>`;
+                    const row=document.createElement('div'); row.style.display='flex'; row.style.flexWrap='wrap'; row.style.gap='4px';
+                    RADAR_LABELS.forEach((l,i)=>row.innerHTML+=`<label style="font-size:0.7rem;">${l}<br><input type="number" min="0" max="10" step="0.5" value="${test.data[i]}" data-test="${idx}" data-skill="${i}" style="width:60px;"></label>`);
+                    div.appendChild(row); container.appendChild(div);
+                });
+            }
+            document.getElementById('updateRadarBtn').addEventListener('click',()=>{ document.getElementById('radarModal').style.display='flex'; buildRadarInputs(); });
+            document.getElementById('cancelRadarBtn').addEventListener('click',()=>document.getElementById('radarModal').style.display='none');
+            document.getElementById('applyRadarBtn').addEventListener('click',()=>{
+                document.querySelectorAll('#radarInputsContainer input').forEach(inp=>{ const t=parseInt(inp.dataset.test), s=parseInt(inp.dataset.skill), v=parseFloat(inp.value); if(!isNaN(v)) RADAR_DATA[t].data[s]=v; });
+                saveRadarData(); initRadarCharts(); document.getElementById('radarModal').style.display='none';
+            });
+            // Import radar Excel
+            document.getElementById('radarFileInput').addEventListener('change',function(e){
+                const file=e.target.files[0]; if(!file) return;
+                const reader=new FileReader();
+                reader.onload=function(ev){
+                    try{
+                        const data=new Uint8Array(ev.target.result); const wb=XLSX.read(data,{type:'array'});
+                        const ws=wb.Sheets[wb.SheetNames[0]]; const json=XLSX.utils.sheet_to_json(ws,{header:1});
+                        if(json.length<2) return alert('Empty.');
+                        const headers=json[0].slice(1); const skillMap={}; headers.forEach((h,i)=>{ skillMap[h.trim()]=i; });
+                        const newRadar=[];
+                        for(let i=1;i<json.length;i++){
+                            const row=json[i]; const label=row[0]||'Test '+i;
+                            const scores=RADAR_LABELS.map(s=>{ const idx=skillMap[s]; return idx!==undefined?parseFloat(row[idx+1])||0:0; });
+                            newRadar.push({label,data:scores,bg:'rgba(100,120,140,0.15)',border:'rgba(100,120,140,1)'});
+                        }
+                        if(newRadar.length>=3){ RADAR_DATA=newRadar.slice(0,3); }
+                        else if(newRadar.length>0){ while(newRadar.length<3) newRadar.push({label:'Test '+(newRadar.length+1),data:RADAR_LABELS.map(()=>0),bg:'rgba(150,150,150,0.1)',border:'rgba(150,150,150,1)'}); RADAR_DATA=newRadar; }
+                        saveRadarData(); initRadarCharts(); alert('Radar imported!');
+                    }catch(err){ alert('Error: '+err.message); }
+                };
+                reader.readAsArrayBuffer(file);
+            });
+            // Download radar Excel template
+            document.getElementById('downloadRadarTemplate').addEventListener('click',()=>{
+                const ws_data=[['Test Name',...RADAR_LABELS], ['Test 1',4,5,3,2,4], ['Test 2',6,6,5,4,5], ['Test 3',8,7,7,6,7]];
+                const ws=XLSX.utils.aoa_to_sheet(ws_data); const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'Radar Template');
+                XLSX.writeFile(wb,'radar_template.xlsx');
+            });
+
+            // ─── Practice Exam Marks Line Chart ────
+            function renderPracticeMarksChart(){
+                const ctx=document.getElementById('practiceMarksChart').getContext('2d'); if(practiceChart) practiceChart.destroy();
+                if(!practiceMarksData.length) return;
+                const trials=practiceMarksData.map(d=>'Trial '+d.trial);
+                const mc=practiceMarksData.map(d=>d.MC), a1=practiceMarksData.map(d=>d.A1), a2=practiceMarksData.map(d=>d.A2), b=practiceMarksData.map(d=>d.B);
+                practiceChart=new Chart(ctx,{
+                    type:'line',
+                    data:{
+                        labels:trials,
+                        datasets:[
+                            {label:'MC',data:mc,borderColor:'#e74c3c',backgroundColor:'transparent',tension:0.2},
+                            {label:'Section A1',data:a1,borderColor:'#3498db',backgroundColor:'transparent',tension:0.2},
+                            {label:'Section A2',data:a2,borderColor:'#2ecc71',backgroundColor:'transparent',tension:0.2},
+                            {label:'Section B',data:b,borderColor:'#f1c40f',backgroundColor:'transparent',tension:0.2}
+                        ]
+                    },
+                    options:{responsive:true,scales:{y:{beginAtZero:true}}}
+                });
+            }
+            document.getElementById('practiceFileInput').addEventListener('change',function(e){
+                const file=e.target.files[0]; if(!file) return;
+                const reader=new FileReader();
+                reader.onload=function(ev){
+                    try{
+                        const data=new Uint8Array(ev.target.result); const wb=XLSX.read(data,{type:'array'});
+                        const ws=wb.Sheets[wb.SheetNames[0]]; const json=XLSX.utils.sheet_to_json(ws,{header:1});
+                        if(json.length<2) return alert('Empty.');
+                        const headers=json[0].map(h=>h.trim());
+                        const trialIdx=headers.indexOf('Trial'), mcIdx=headers.indexOf('MC'), a1Idx=headers.indexOf('A1'), a2Idx=headers.indexOf('A2'), bIdx=headers.indexOf('B');
+                        if(trialIdx===-1||mcIdx===-1||a1Idx===-1||a2Idx===-1||bIdx===-1) return alert('Headers must be: Trial, MC, A1, A2, B');
+                        const newData=[];
+                        for(let i=1;i<json.length;i++){
+                            const row=json[i]; newData.push({trial:row[trialIdx], MC:parseFloat(row[mcIdx])||0, A1:parseFloat(row[a1Idx])||0, A2:parseFloat(row[a2Idx])||0, B:parseFloat(row[bIdx])||0});
+                        }
+                        practiceMarksData=newData; savePracticeMarks(); renderPracticeMarksChart(); alert('Marks imported!');
+                    }catch(err){ alert('Error: '+err.message); }
+                };
+                reader.readAsArrayBuffer(file);
+            });
+            document.getElementById('downloadPracticeTemplate').addEventListener('click',()=>{
+                const ws_data=[['Trial','MC','A1','A2','B'], [1,15,8,10,12], [2,18,10,12,14], [3,20,12,15,16]];
+                const ws=XLSX.utils.aoa_to_sheet(ws_data); const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'Marks Template');
+                XLSX.writeFile(wb,'practice_marks_template.xlsx');
+            });
+
+            // ─── Growing Tree ────────────────────
+            function drawTree(percent){
+                const canvas=document.getElementById('treeCanvas'), ctx=canvas.getContext('2d'), w=canvas.width, h=canvas.height;
+                ctx.clearRect(0,0,w,h); const groundY=h-30;
+                ctx.fillStyle='#e8dcc8'; ctx.beginPath(); ctx.ellipse(w/2,groundY+8,w*0.38,18,0,0,Math.PI*2); ctx.fill();
+                if(percent<=0.01){ ctx.strokeStyle='#8B6914'; ctx.lineWidth=3; ctx.beginPath(); ctx.moveTo(w/2,groundY); ctx.lineTo(w/2,groundY-20); ctx.stroke(); ctx.fillStyle='#7cb342'; ctx.beginPath(); ctx.arc(w/2,groundY-22,6,0,Math.PI*2); ctx.fill(); return; }
+                const maxDepth=Math.floor(percent*7)+2, trunkLen=h*0.18+percent*h*0.22;
+                function branch(x,y,len,angle,depth){
+                    if(depth>maxDepth||len<3) return; const ex=x+len*Math.cos(angle), ey=y-len*Math.sin(angle);
+                    ctx.strokeStyle=`rgb(${80+depth*14},${35+depth*10},${8+depth*4})`; ctx.lineWidth=Math.max(1,(maxDepth-depth+1)*1.6);
+                    ctx.beginPath(); ctx.moveTo(x,y); ctx.lineTo(ex,ey); ctx.stroke();
+                    if(depth>=maxDepth-2&&percent>0.15){ ctx.fillStyle=`rgba(${30+Math.random()*40},${80+Math.random()*100},${20+Math.random()*30},0.85)`; ctx.beginPath(); ctx.arc(ex,ey,3+Math.random()*5,0,Math.PI*2); ctx.fill(); }
+                    branch(ex,ey,len*0.68,angle-0.4,depth+1); branch(ex,ey,len*0.68,angle+0.4,depth+1);
+                }
+                ctx.strokeStyle='#6B4226'; ctx.lineWidth=8+percent*6; ctx.beginPath(); ctx.moveTo(w/2,groundY); ctx.lineTo(w/2,groundY-trunkLen); ctx.stroke();
+                branch(w/2,groundY-trunkLen+trunkLen*0.15,trunkLen*0.7,Math.PI/2,1);
+            }
+            function animateTree(){ const diff=treeTargetPercent-treeVisualPercent; if(Math.abs(diff)<0.002){ treeVisualPercent=treeTargetPercent; drawTree(treeVisualPercent); animationId=null; return; } treeVisualPercent+=diff*0.12; drawTree(treeVisualPercent); animationId=requestAnimationFrame(animateTree); }
+            function triggerTreeAnimation(){ treeTargetPercent=getCompletionPercent(); if(!animationId) animationId=requestAnimationFrame(animateTree); }
+
+            // ─── Init ────────────────────────────
+            function init(){
+                examDate=loadExamDate(); studyBlocks=loadStudyBlocks(); completedTasks=loadCompletedTasks(); loadRadarData(); loadTasks(); loadDailyQuestions(); loadPracticeMarks();
+                document.getElementById('examDateInput').value=examDate.toISOString().slice(0,10);
+                generateTimetable(); renderTaskList(); updateProgressRing(); initRadarCharts(); renderDailyQuestionsChart(); renderPracticeMarksChart();
+                treeVisualPercent=getCompletionPercent(); treeTargetPercent=treeVisualPercent; drawTree(treeVisualPercent);
+                updateCountdown(); setInterval(updateCountdown,1000);
+                window.addEventListener('resize',refreshTimetable);
+                document.getElementById('examDateInput').addEventListener('change',e=>{ const d=new Date(e.target.value+'T09:00:00'); if(!isNaN(d)){ examDate=d; saveExamDate(); updateCountdown(); } });
+            }
+            init();
+        })();
+    </script>
+</body>
+</html>
