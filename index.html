@@ -310,29 +310,44 @@
     document.getElementById('toggleSettingsBtn').addEventListener('click', () => {
         teacherUrlGroup.style.display = teacherUrlGroup.style.display === 'none' ? 'flex' : 'none';
     });
-    function syncToTeacher() {
-        if (!teacherUrl || !studentId) {
-            syncStatus.textContent = '❌ Set ID & URL';
-            return;
-        }
-        syncStatus.textContent = '⏳ Syncing...';
-        const payload = {
-            studentId: studentId,
-            examDate: examDate ? examDate.toISOString() : null,
-            completedTasks: completedTaskIds,
-            totalTasks: TASKS.length,
-            practiceMarks: practiceMarksData,
-            dailyQuestions: dailyQuestionsData
-        };
-        fetch(teacherUrl, {
-            method: 'POST',
-            mode: 'no-cors',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        })
-        .then(() => { syncStatus.textContent = '✅ Synced ' + new Date().toLocaleTimeString(); })
-        .catch(err => { syncStatus.textContent = '❌ Error: ' + err.message; });
+function syncToTeacher() {
+    if (!teacherUrl || !studentId) {
+        syncStatus.textContent = '❌ Set ID & URL';
+        return;
     }
+    syncStatus.textContent = '⏳ Syncing...';
+    const payload = {
+        studentId: studentId,
+        examDate: examDate ? examDate.toISOString() : null,
+        completedTasks: completedTaskIds,
+        totalTasks: TASKS.length,
+        practiceMarks: practiceMarksData,
+        dailyQuestions: dailyQuestionsData
+    };
+    fetch(teacherUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+    })
+    .then(response => response.text())
+    .then(text => {
+        syncStatus.textContent = '✅ Synced ' + new Date().toLocaleTimeString();
+        console.log('Sync response:', text);
+    })
+    .catch(err => {
+        syncStatus.textContent = '❌ Error: ' + err.message;
+        console.error('Sync error:', err);
+    });
+}
+
+
+
+
+
+
+
+
+    
     document.getElementById('syncNowBtn').addEventListener('click', syncToTeacher);
     let syncTimeout;
     function triggerAutoSync() {
